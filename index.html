@@ -108,8 +108,7 @@
     </div>
     
     <canvas id="pdf-chart-canvas" width="800" height="600"></canvas>
-
-    <script type="module">
+  <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
         import { getFirestore, doc, setDoc, onSnapshot, getDoc, collection } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
@@ -129,8 +128,16 @@
         const APP_VERSION = "8.0.0";
         const BUILD_ID = "PREMIUM_EDITION";
 
-        // ⚠️ IMPORTANTE: COLOCA TUS CREDENCIALES DE FIREBASE AQUÍ SI LAS TIENES
-        const FIREBASE_CONFIG = { apiKey: "", authDomain: "", projectId: "", storageBucket: "", messagingSenderId: "", appId: "" };
+        // ✅ TUS CREDENCIALES INTEGRADAS (NO TOCAR)
+        const FIREBASE_CONFIG = { 
+            apiKey: "AIzaSyDqdJcKILp5kQ4sTxVm8Ch5E7oXfMD3BAM",
+            authDomain: "master-control-palmas.firebaseapp.com",
+            projectId: "master-control-palmas",
+            storageBucket: "master-control-palmas.firebasestorage.app",
+            messagingSenderId: "681752784684",
+            appId: "1:681752784684:web:e4a4a4ce96d587380d4689"
+        };
+        
         const ENV_APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const ENV_FIREBASE_CONFIG = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         const ENV_AUTH_TOKEN = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
@@ -327,8 +334,7 @@
                 }
             } catch (e) { console.error("Audio play failed", e); }
         };
-
-        // --- COMPONENTS ---
+      // --- COMPONENTS ---
         
         const CategoryHeader = ({ title, icon: Icon, isOpen, toggle }) => (
             <button onClick={toggle} className="w-full flex items-center justify-between p-4 bg-[#1D1F23] border border-[#3A4048] hover:bg-[#1D1F23]/80 rounded-xl shadow-lg mb-2 transition-all group"><div className="flex items-center gap-3"><div className="text-indigo-400 group-hover:text-indigo-300 transition-colors"><Icon size={20} /></div><h2 className="font-bold text-white text-lg group-hover:text-white transition-colors">{title}</h2></div>{isOpen ? <Icons.ChevronUp className="text-[#f0f6fc]/50" /> : <Icons.ChevronDown className="text-[#f0f6fc]/50" />}</button>
@@ -1220,8 +1226,7 @@
                 </div>
             );
         };
-
-       // --- HEADER CORREGIDO (CONECTADO A LA ESTRELLA) ---
+        // --- HEADER ---
         const Header = ({ onNewPeriod, onClearAll, onDownload, onDownloadPDF, onShowCharts, onBackup, onRestore, isCloud, onShopping, onShowPurchasesLog, onShowSalesEntry, logoSrc, onLogoUpload, onShowCount, isSaving, onToggleSearch, showSearch, onToggleZoneSelector, showZoneSelector, onFilterCategory, currentFilter, onStarClick }) => {
             const [showMenu, setShowMenu] = useState(false);
             const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -1248,14 +1253,13 @@
                                 {/* COUNT BUTTON */}
                                 <button onClick={onShowCount} className="flex items-center gap-2 bg-green-500 hover:bg-green-400 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-green-900/30 active:scale-95 text-sm border border-green-400"><Icons.List size={20} /> COUNT</button>
                                 
-                                {/* --- BOTÓN DE ESTRELLA (AHORA SÍ CONECTADO) --- */}
+                                {/* PREMIUM STAR BUTTON */}
                                 <button 
                                     onClick={onStarClick} 
                                     className="flex items-center justify-center w-11 h-11 rounded-xl font-bold shadow-lg active:scale-95 border transition-all bg-yellow-600 hover:bg-yellow-500 text-white border-yellow-400 shadow-yellow-900/30"
                                 >
                                     <Icons.Star size={22} fill="currentColor" />
                                 </button>
-                                {/* --------------------------------------------- */}
 
                                 {/* SETTINGS BUTTON */}
                                 <button onClick={() => setShowMenu(!showMenu)} className={`flex items-center justify-center w-11 h-11 rounded-xl font-bold shadow-lg active:scale-95 border transition-all ${showMenu ? 'bg-slate-600 text-white ring-2 ring-slate-500/50 scale-105' : 'bg-slate-700 hover:bg-slate-600 text-white border-slate-500 shadow-slate-900/30'}`}><Icons.Settings size={22} /></button>
@@ -1267,7 +1271,7 @@
             );
         };
         
-       // 1. UPDATE createItem TO INCLUDE sticker_ids
+       // --- DATA HELPERS ---
         const createItem = (id, name) => ({ 
             id, 
             name, 
@@ -1279,10 +1283,9 @@
             bar1_cooler: "", bar1_small_cooler_1: "", bar1_small_cooler_2: "", bar1_reaching: "", bar1_shelf_full: "", bar1_shelf_open: "", bar1_well_1: "", bar1_well_2: "", 
             bar2_cooler: "", bar2_small_cooler: "", 
             bodega_closet: "", bodega_shelves: "",
-            sticker_ids: [] // <--- NEW FIELD FOR STICKERS
+            sticker_ids: [] // Field for stickers
         });
 
-        // ⚠️ PRODUCT NAMES REMAIN UNCHANGED
         const INITIAL_DATA = [
             { category: "Premium Liquor (Tequila/Whisky)", items: [ createItem("liq-1", "Casamigos Blanco"), createItem("liq-2", "Casamigos Reposado"), createItem("liq-23", "Espolon Blanco"), createItem("liq-24", "Espolon Reposado"), createItem("liq-25", "Patron Cristalino"), createItem("liq-3", "Don Julio Blanco"), createItem("liq-4", "Don Julio Reposado"), createItem("liq-6", "Patron Silver"), createItem("liq-7", "Patron Reposado"), createItem("liq-8", "Clase Azul"), createItem("liq-9", "Grand Old Parr 12"), createItem("liq-11", "Crown Royal Regal"), createItem("liq-10", "Apple Crown Royal"), createItem("liq-26", "Hennessy VS"), createItem("liq-12", "Buchanans 12"), createItem("liq-13", "Johnnie Walker Black"), createItem("liq-14", "Capitan Morgan Spice"), createItem("liq-15", "Brugal Anejo"), createItem("liq-27", "Tito's Texas Vodka"), createItem("liq-16", "Grey Goose"), createItem("liq-17", "Jack Daniels Black"), createItem("liq-18", "WoodFord Reserve"), createItem("liq-19", "Fernet Branca"), createItem("liq-28", "Jagermeister"), createItem("liq-29", "Jameson"), createItem("liq-30", "Beefeater"), createItem("liq-32", "Wahaka Mezcal"), createItem("liq-31", "Malibu"), createItem("vin-4", "Moet Imperial Necta Rose"), createItem("liq-20", "Disaronno Amaretto"), createItem("vin-3", "Procecco Zonin"), createItem("liq-21", "Remy Martin"), createItem("liq-22", "Novo Fogo Silver Cachaca") ]},
             { category: "Wells (House Liquor)", items: [ createItem("wel-1", "Bacardi Light"), createItem("wel-2", "Bacardi Lime"), createItem("wel-13", "Bacardi Limon"), createItem("wel-3", "Pirassununga Cachaça 51"), {...createItem("wel-4", "Barton Naturals Vodka"), barcode: "123456789012,210987654321"}, createItem("wel-15", "Barton Gin"), createItem("wel-5", "Peach Schnapps Boston"), createItem("wel-6", "Montezuma White"), createItem("wel-7", "Triple Sec Boston"), createItem("wel-8", "Long Island Tea Mix"), createItem("wel-9", "Curacao Blue"), createItem("wel-10", "Melon Boston"), createItem("wel-14", "Sour Apple"), createItem("wel-11", "Sour Apple HW"), createItem("wel-12", "Sour Cherry Boston") ]},
@@ -1292,7 +1295,7 @@
             { category: "Non Alcoholic", items: [ createItem("na-1", "Coca Cola"), createItem("na-2", "Diet Coke"), createItem("na-3", "Sprite"), createItem("na-4", "Ginger Ale"), createItem("na-5", "Water Bottle") ]}
         ];
 
-        // --- 2. PREMIUM CONTROL MODAL (TRANSLATED TO ENGLISH) ---
+        // --- PREMIUM CONTROL MODAL ---
         const PremiumControlModal = ({ isOpen, onClose, data, onUpdateStickers }) => {
             if (!isOpen) return null;
             const premiumCategory = data.find(cat => cat.category.includes("Premium"));
@@ -1349,6 +1352,7 @@
             );
         };
 
+        // --- MAIN APPLICATION LOGIC ---
         function App() {
             const [isAuthenticated, setIsAuthenticated] = useState(false);
             const [data, setData] = useState(INITIAL_DATA);
@@ -1387,7 +1391,7 @@
             const [searchTerm, setSearchTerm] = useState("");
             const [categoryFilter, setCategoryFilter] = useState(null);
 
-            // 3. STATE FOR PREMIUM MODAL
+            // PREMIUM MODAL STATE
             const [showPremiumModal, setShowPremiumModal] = useState(false);
 
             const updateItemStickers = (itemId, newStickersArray) => {
@@ -1647,7 +1651,7 @@
                     {showSalesEntry && <SalesEntryModal isOpen={showSalesEntry} onClose={() => setShowSalesEntry(false)} data={data} onUpdate={updateItem} onBatchUpdate={batchUpdateItems} />}
                     {showCountReview && <CountReviewModal isOpen={showCountReview} onClose={() => setShowCountReview(false)} data={data} onUpdate={updateItem} />}
                     
-                    {/* 4. MODAL ADDED TO RENDER */}
+                    {/* PREMIUM MODAL RENDER */}
                     <PremiumControlModal 
                         isOpen={showPremiumModal}
                         onClose={() => setShowPremiumModal(false)}
