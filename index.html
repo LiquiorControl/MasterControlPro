@@ -1496,13 +1496,13 @@ doc.setFontSize(22);
 doc.setTextColor(40); 
 doc.setFont("helvetica", "bold"); 
 // 👇 AQUÍ PON EL NOMBRE DE TU BAR 👇
-doc.text("PALMAS TROPICAL ESCAPE", 35, 20); 
+doc.text("Palmas Tropical Escape", 35, 20); 
 
 // 3. Fecha del reporte
 doc.setFontSize(10); 
 doc.setTextColor(100); 
 doc.setFont("helvetica", "normal"); 
-doc.text(`Reporte generado: ${dateText}`, 35, 26);
+doc.text(`Report Date: ${dateText}`, 35, 26);
                 doc.line(15, 30, 195, 30); 
                 doc.setFillColor(245, 247, 250); doc.roundedRect(15, 35, 40, 30, 2, 2, 'F'); doc.setFontSize(9); doc.setTextColor(100); doc.text("RATING", 35, 42, { align: 'center' }); doc.setFontSize(24); doc.setTextColor(...scoreColor); doc.setFont("helvetica", "bold"); doc.text(grade, 35, 53, { align: 'center' }); doc.setFontSize(10); doc.text(`${score.toFixed(1)}%`, 35, 60, { align: 'center' });
                 doc.setFillColor(245, 247, 250); doc.roundedRect(60, 35, 40, 30, 2, 2, 'F'); doc.setFontSize(9); doc.setTextColor(100); doc.setFont("helvetica", "normal"); doc.text("TOTAL CONSUMED", 80, 42, { align: 'center' }); doc.setFontSize(16); doc.setTextColor(40); doc.setFont("helvetica", "bold"); doc.text(totalConsumed.toFixed(1), 80, 52, { align: 'center' }); doc.setFontSize(8); doc.text("Units Used", 80, 58, { align: 'center' });
