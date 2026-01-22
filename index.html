@@ -1113,7 +1113,7 @@
             
             // --- LÓGICA DE SINCRONIZACIÓN MÓVIL (APP LINK) ---
             const [mobileSyncEnabled, setMobileSyncEnabled] = useState(false);
-            const mobileSyncRef = useRef(false); // "Portero" de referencia inmediata
+            const mobileSyncRef = useRef(false);
 
             const fileInputRef = useRef(null);
             const LOCAL_STORAGE_KEY = 'bar-inventory-neon-pc-v9'; 
@@ -1139,50 +1139,32 @@
             const [searchTerm, setSearchTerm] = useState("");
             const [categoryFilter, setCategoryFilter] = useState(null);
 
-            // --- NUEVO ESTADO PARA EL MODAL DE PESOS ---
+            // NUEVOS ESTADOS
             const [showBottleSpecs, setShowBottleSpecs] = useState(false); 
-
-            // PREMIUM MODAL STATE
             const [showPremiumModal, setShowPremiumModal] = useState(false);
+            
+            // --- ESTADOS PARA SEGURIDAD DE RESET ---
+            const [showResetSecurity, setShowResetSecurity] = useState(false);
+            const [securityCode, setSecurityCode] = useState("");
 
-            // --- FUNCIÓN TOGGLE LINK (CORREGIDA PARA BLOQUEO REAL) ---
             const toggleMobileSync = async () => {
                 const newValue = !mobileSyncEnabled;
                 setMobileSyncEnabled(newValue);
-                mobileSyncRef.current = newValue; // Actualizamos el "portero" INMEDIATAMENTE
-                
+                mobileSyncRef.current = newValue; 
                 playSound(newValue ? 'success' : 'sub');
-                
                 if (isCloud && window.fb) {
                     try {
                         const db = window.fb.getFirestore();
                         const collectionPath = ENV_APP_ID !== 'default-app-id' ? `artifacts/${ENV_APP_ID}/public/data/inventory` : 'inventory';
-                        
-                        // Guardamos el estado en la nube
-                        await window.fb.setDoc(window.fb.doc(db, collectionPath, 'master'), { 
-                            mobileAccess: newValue 
-                        }, { merge: true });
-                        
+                        await window.fb.setDoc(window.fb.doc(db, collectionPath, 'master'), { mobileAccess: newValue }, { merge: true });
                         showNotification(newValue ? "LINK ACTIVE: RECEIVING DATA" : "LINK OFFLINE: BLOCKED");
-                    } catch(e) {
-                        console.error(e);
-                    }
-                } else {
-                    showNotification("LOCAL MODE (OFFLINE)");
-                }
+                    } catch(e) { console.error(e); }
+                } else { showNotification("LOCAL MODE (OFFLINE)"); }
             };
 
             const updateItemStickers = (itemId, newStickersArray) => {
                 const timestamp = Date.now();
-                const newData = data.map(cat => ({
-                    ...cat,
-                    items: cat.items.map(item => {
-                        if (item.id === itemId) {
-                            return { ...item, sticker_ids: newStickersArray, lastUpdated: timestamp };
-                        }
-                        return item;
-                    })
-                }));
+                const newData = data.map(cat => ({ ...cat, items: cat.items.map(item => { if (item.id === itemId) return { ...item, sticker_ids: newStickersArray, lastUpdated: timestamp }; return item; }) }));
                 saveData(newData);
             };
 
@@ -1195,43 +1177,20 @@
                             const app = fb.initializeApp(configToUse);
                             const auth = fb.getAuth(app);
                             const db = fb.getFirestore(app);
-                            if (ENV_AUTH_TOKEN) await fb.signInWithCustomToken(auth, ENV_AUTH_TOKEN);
-                            else await fb.signInAnonymously(auth);
-                            
+                            if (ENV_AUTH_TOKEN) await fb.signInWithCustomToken(auth, ENV_AUTH_TOKEN); else await fb.signInAnonymously(auth);
                             fb.onAuthStateChanged(auth, (u) => {
                                 setUser(u);
                                 if (u) {
                                     setIsCloud(true);
                                     const collectionPath = ENV_APP_ID !== 'default-app-id' ? `artifacts/${ENV_APP_ID}/public/data/inventory` : 'inventory';
                                     const docRef = fb.doc(db, collectionPath, 'master');
-                                    
-                                    // --- LISTENER EN TIEMPO REAL ---
                                     fb.onSnapshot(docRef, (docSnap) => {
                                         if (docSnap.exists()) { 
                                             const docData = docSnap.data();
                                             const isLocalChange = docSnap.metadata.hasPendingWrites; 
-                                            
-                                            // Sincronizar botón al inicio
-                                            if (!mobileSyncRef.current && docData.mobileAccess === true && loading) {
-                                                setMobileSyncEnabled(true);
-                                                mobileSyncRef.current = true;
-                                            }
-
-                                            if (docData.items) {
-                                                if (isLocalChange) {
-                                                    // Mis propios cambios pasan siempre
-                                                    setData(docData.items);
-                                                } else {
-                                                    // Cambios remotos solo si el switch está ON
-                                                    if (mobileSyncRef.current === true) {
-                                                        setData(docData.items);
-                                                    } else {
-                                                        console.log("Blocked incoming mobile data (Sync OFF)");
-                                                    }
-                                                }
-                                            }
-                                        } 
-                                        else { fb.setDoc(docRef, { items: INITIAL_DATA, mobileAccess: false }); setData(INITIAL_DATA); }
+                                            if (!mobileSyncRef.current && docData.mobileAccess === true && loading) { setMobileSyncEnabled(true); mobileSyncRef.current = true; }
+                                            if (docData.items) { if (isLocalChange) { setData(docData.items); } else { if (mobileSyncRef.current === true) { setData(docData.items); } } }
+                                        } else { fb.setDoc(docRef, { items: INITIAL_DATA, mobileAccess: false }); setData(INITIAL_DATA); }
                                         setLoading(false);
                                     }, (err) => { console.warn(err); setIsCloud(false); loadLocal(); });
                                 } else { loadLocal(); }
@@ -1239,116 +1198,32 @@
                         } catch (e) { console.warn(e); setIsCloud(false); loadLocal(); }
                     } else { setIsCloud(false); loadLocal(); }
                 };
-                const loadLocal = () => {
-                    const saved = SafeStorage.getItem(LOCAL_STORAGE_KEY);
-                    if (saved) setData(JSON.parse(saved)); else setData(INITIAL_DATA);
-                    setLoading(false);
-                };
+                const loadLocal = () => { const saved = SafeStorage.getItem(LOCAL_STORAGE_KEY); if (saved) setData(JSON.parse(saved)); else setData(INITIAL_DATA); setLoading(false); };
                 initApp();
             }, []);
 
-            // PDF GENERATION LOGIC
             const generatePDF = async () => {
                 showNotification("GENERATING REPORT...");
-                let items = []; let totalConsumed = 0; let totalSold = 0; let totalDiff = 0; let catMap = {};
-                const categorySummary = {}; 
-                data.forEach(cat => { 
-                    let cSales = 0; 
-                    if (!categorySummary[cat.category]) categorySummary[cat.category] = { used: 0, sold: 0, variance: 0 };
-                    cat.items.forEach(item => {
-                        const totalPhys = (parseFloat(item.bar1)||0) + (parseFloat(item.bar2)||0) + (parseFloat(item.bodega)||0) + (parseFloat(item.barroluco)||0);
-                        const totalStart = (parseFloat(item.start_bar1)||0) + (parseFloat(item.start_bar2)||0) + (parseFloat(item.start_bodega)||0) + (parseFloat(item.start_barroluco)||0);
-                        const purchases = parseFloat(item.purchases)||0; const sales = parseFloat(item.sales)||0;
-                        const systemConsumption = totalStart + purchases - totalPhys;
-                        const diff = sales - systemConsumption;
-                        if (systemConsumption > 0 || sales > 0) { 
-                            items.push({ ...item, category: cat.category, totalStart, totalPhys, purchases, systemConsumption, sales, diff }); 
-                            totalConsumed += systemConsumption; totalSold += sales; totalDiff += diff; cSales += sales; 
-                            categorySummary[cat.category].used += systemConsumption; categorySummary[cat.category].sold += sales; categorySummary[cat.category].variance += diff;
-                        }
-                    }); 
-                    if (cSales > 0) catMap[cat.category] = cSales; 
-                });
-                items.sort((a, b) => a.diff - b.diff); 
-                const topLosses = items.filter(i => i.diff < 0).slice(0, 5);
-                const createChartImage = (config) => {
-                    return new Promise((resolve) => {
-                        const canvas = document.getElementById('pdf-chart-canvas'); const ctx = canvas.getContext('2d');
-                        ctx.save(); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.restore();
-                        const pdfConfig = { ...config, options: { ...config.options, animation: false, responsive: false, devicePixelRatio: 2, color: '#000000', plugins: { ...config.options?.plugins, legend: { ...config.options?.plugins?.legend, labels: { color: '#000000', font: { size: 14 } } }, title: { ...config.options?.plugins?.title, color: '#000000', font: { size: 18, weight: 'bold' } }, datalabels: { color: '#000000' } }, scales: config.type !== 'pie' ? { x: { ticks: { color: '#000000' }, grid: { color: '#cccccc' } }, y: { ticks: { color: '#000000' }, grid: { color: '#cccccc' } } } : {} } };
-                        if (window.pdfChart) window.pdfChart.destroy(); window.pdfChart = new Chart(ctx, pdfConfig);
-                        setTimeout(() => { try { ctx.globalCompositeOperation = 'destination-over'; ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height); const img = canvas.toDataURL('image/jpeg', 1.0); resolve(img); } catch (e) { resolve(null); } }, 500);
-                    });
-                };
+                let items = []; let totalConsumed = 0; let totalSold = 0; let totalDiff = 0; let catMap = {}; const categorySummary = {}; 
+                data.forEach(cat => { let cSales = 0; if (!categorySummary[cat.category]) categorySummary[cat.category] = { used: 0, sold: 0, variance: 0 }; cat.items.forEach(item => { const totalPhys = (parseFloat(item.bar1)||0) + (parseFloat(item.bar2)||0) + (parseFloat(item.bodega)||0) + (parseFloat(item.barroluco)||0); const totalStart = (parseFloat(item.start_bar1)||0) + (parseFloat(item.start_bar2)||0) + (parseFloat(item.start_bodega)||0) + (parseFloat(item.start_barroluco)||0); const purchases = parseFloat(item.purchases)||0; const sales = parseFloat(item.sales)||0; const systemConsumption = totalStart + purchases - totalPhys; const diff = sales - systemConsumption; if (systemConsumption > 0 || sales > 0) { items.push({ ...item, category: cat.category, totalStart, totalPhys, purchases, systemConsumption, sales, diff }); totalConsumed += systemConsumption; totalSold += sales; totalDiff += diff; cSales += sales; categorySummary[cat.category].used += systemConsumption; categorySummary[cat.category].sold += sales; categorySummary[cat.category].variance += diff; } }); if (cSales > 0) catMap[cat.category] = cSales; });
+                items.sort((a, b) => a.diff - b.diff); const topLosses = items.filter(i => i.diff < 0).slice(0, 5);
+                const createChartImage = (config) => { return new Promise((resolve) => { const canvas = document.getElementById('pdf-chart-canvas'); const ctx = canvas.getContext('2d'); ctx.save(); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.restore(); const pdfConfig = { ...config, options: { ...config.options, animation: false, responsive: false, devicePixelRatio: 2, color: '#000000', plugins: { ...config.options?.plugins, legend: { ...config.options?.plugins?.legend, labels: { color: '#000000', font: { size: 14 } } }, title: { ...config.options?.plugins?.title, color: '#000000', font: { size: 18, weight: 'bold' } }, datalabels: { color: '#000000' } }, scales: config.type !== 'pie' ? { x: { ticks: { color: '#000000' }, grid: { color: '#cccccc' } }, y: { ticks: { color: '#000000' }, grid: { color: '#cccccc' } } } : {} } }; if (window.pdfChart) window.pdfChart.destroy(); window.pdfChart = new Chart(ctx, pdfConfig); setTimeout(() => { try { ctx.globalCompositeOperation = 'destination-over'; ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height); const img = canvas.toDataURL('image/jpeg', 1.0); resolve(img); } catch (e) { resolve(null); } }, 500); }); };
                 const chartImg1 = await createChartImage({ type: 'pie', data: { labels: Object.keys(catMap).map(k => k.split(' ')[0]), datasets: [{ data: Object.values(catMap), backgroundColor: ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444'] }] }, options: { plugins: { title: { display: true, text: 'Sales Share' }, legend: { position: 'bottom' } } } });
                 const chartImg2 = await createChartImage({ type: 'bar', data: { labels: topLosses.map(i => i.name), datasets: [{ label: 'Loss (Units)', data: topLosses.map(i => i.diff), backgroundColor: '#ef4444' }] }, options: { indexAxis: 'y', plugins: { title: { display: true, text: 'Top 5 Product Losses' }, legend: { display: false } } } });
-                const { jsPDF } = window.jspdf; const doc = new jsPDF(); const dateText = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-                let score = 100; if(totalConsumed > 0) { score = Math.max(0, 100 - (Math.abs(totalDiff) / totalConsumed * 100)); }
-                const grade = score >= 95 ? "A" : score >= 85 ? "B" : "C"; const scoreColor = score >= 95 ? [34, 197, 94] : score >= 85 ? [234, 179, 8] : [239, 68, 68];
-                
-                if (logo && logo.startsWith("data:image")) { try { doc.addImage(logo, "JPEG", 15, 10, 15, 15); } catch (err) { console.log("Error logo PDF", err); } }
-                doc.setFontSize(22); doc.setTextColor(40); doc.setFont("helvetica", "bold"); doc.text("PALMAS TROPICAL ESCAPE", 35, 20); 
-                doc.setFontSize(10); doc.setTextColor(100); doc.setFont("helvetica", "normal"); doc.text(`Report Date: ${dateText}`, 35, 26);
-                doc.line(15, 30, 195, 30); 
+                const { jsPDF } = window.jspdf; const doc = new jsPDF(); const dateText = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }); let score = 100; if(totalConsumed > 0) { score = Math.max(0, 100 - (Math.abs(totalDiff) / totalConsumed * 100)); } const grade = score >= 95 ? "A" : score >= 85 ? "B" : "C"; const scoreColor = score >= 95 ? [34, 197, 94] : score >= 85 ? [234, 179, 8] : [239, 68, 68];
+                if (logo && logo.startsWith("data:image")) { try { doc.addImage(logo, "JPEG", 15, 10, 15, 15); } catch (err) { } }
+                doc.setFontSize(22); doc.setTextColor(40); doc.setFont("helvetica", "bold"); doc.text("PALMAS TROPICAL ESCAPE", 35, 20); doc.setFontSize(10); doc.setTextColor(100); doc.setFont("helvetica", "normal"); doc.text(`Report Date: ${dateText}`, 35, 26); doc.line(15, 30, 195, 30); 
                 doc.setFillColor(245, 247, 250); doc.roundedRect(15, 35, 40, 30, 2, 2, 'F'); doc.setFontSize(9); doc.setTextColor(100); doc.text("RATING", 35, 42, { align: 'center' }); doc.setFontSize(24); doc.setTextColor(...scoreColor); doc.setFont("helvetica", "bold"); doc.text(grade, 35, 53, { align: 'center' }); doc.setFontSize(10); doc.text(`${score.toFixed(1)}%`, 35, 60, { align: 'center' });
                 doc.setFillColor(245, 247, 250); doc.roundedRect(60, 35, 40, 30, 2, 2, 'F'); doc.setFontSize(9); doc.setTextColor(100); doc.setFont("helvetica", "normal"); doc.text("TOTAL CONSUMED", 80, 42, { align: 'center' }); doc.setFontSize(16); doc.setTextColor(40); doc.setFont("helvetica", "bold"); doc.text(totalConsumed.toFixed(1), 80, 52, { align: 'center' }); doc.setFontSize(8); doc.text("Units Used", 80, 58, { align: 'center' });
                 doc.setFillColor(245, 247, 250); doc.roundedRect(105, 35, 40, 30, 2, 2, 'F'); doc.setFontSize(9); doc.setTextColor(100); doc.setFont("helvetica", "normal"); doc.text("TOTAL SOLD", 125, 42, { align: 'center' }); doc.setFontSize(16); doc.setTextColor(79, 70, 229); doc.setFont("helvetica", "bold"); doc.text(totalSold.toFixed(1), 125, 52, { align: 'center' }); doc.setFontSize(8); doc.setTextColor(40); doc.text("Units Sold (POS)", 125, 58, { align: 'center' });
                 doc.setFillColor(totalDiff < 0 ? 254 : 240, totalDiff < 0 ? 242 : 253, totalDiff < 0 ? 242 : 244); doc.roundedRect(150, 35, 45, 30, 2, 2, 'F'); doc.setFontSize(9); doc.setTextColor(100); doc.setFont("helvetica", "normal"); doc.text("VARIANCE", 172.5, 42, { align: 'center' }); doc.setFontSize(16); doc.setTextColor(totalDiff < 0 ? 220 : 34, totalDiff < 0 ? 38 : 139, 38); doc.setFont("helvetica", "bold"); doc.text(`${totalDiff > 0 ? '+' : ''}${totalDiff.toFixed(1)}`, 172.5, 52, { align: 'center' }); doc.setFontSize(8); doc.text(totalDiff < 0 ? "Loss" : "Gain", 172.5, 58, { align: 'center' });
-                const catSummaryData = Object.entries(categorySummary).map(([cat, vals]) => [ cat, vals.used.toFixed(1), vals.sold.toFixed(1), vals.variance.toFixed(1), `${vals.used > 0 ? ((vals.variance / vals.used) * 100).toFixed(1) : '0.0'}%` ]);
-                doc.autoTable({ startY: 75, head: [['Category', 'Used', 'Sold', 'Variance', '% Var']], body: catSummaryData, theme: 'grid', headStyles: { fillColor: [55, 65, 81], textColor: 255, fontStyle: 'bold' }, styles: { fontSize: 9, cellPadding: 3 }, columnStyles: { 3: { fontStyle: 'bold' }, 4: { halign: 'right' } }, didParseCell: function(data) { if (data.column.index === 3) { const val = parseFloat(data.cell.raw); data.cell.styles.textColor = val < 0 ? [220, 38, 38] : [22, 163, 74]; } } });
-                let yPos = doc.lastAutoTable.finalY + 10; if (chartImg1) { doc.addImage(chartImg1, 'JPEG', 15, yPos, 80, 60); } if (chartImg2) { doc.addImage(chartImg2, 'JPEG', 105, yPos, 90, 60); }
-                doc.addPage(); doc.setFontSize(16); doc.setTextColor(40); doc.text("Top Loss Leaders", 15, 20); doc.autoTable({ startY: 30, head: [['Item Name', 'Category', 'Missing Units']], body: topLosses.map(i => [i.name, i.category, i.diff.toFixed(2)]), theme: 'striped', headStyles: { fillColor: [220, 38, 38] }, styles: { fontSize: 10 } });
-                doc.addPage(); doc.setFontSize(16); doc.setTextColor(40); doc.text("Detailed Inventory Report", 15, 20); doc.autoTable({ startY: 30, head: [['Product', 'Cat', 'Start', 'Buy', 'End', 'Used', 'Sold', 'Diff']], body: items.map(i => [ i.name, i.category.split(' ')[0], i.totalStart, i.purchases || 0, i.totalPhys, i.systemConsumption.toFixed(2), i.sales.toFixed(2), i.diff.toFixed(2) ]), styles: { fontSize: 8, cellPadding: 2, textColor: [0,0,0] }, headStyles: { fillColor: [30, 30, 30], textColor: 255 }, didParseCell: function(data) { if (data.section === 'body' && data.column.index === 7) { const val = parseFloat(data.cell.raw); if (val < -0.1) { data.cell.styles.fillColor = [255, 230, 230]; data.cell.styles.textColor = [180, 0, 0]; data.cell.styles.fontStyle = 'bold'; } else if (val > 0.1) { data.cell.styles.fillColor = [230, 255, 230]; data.cell.styles.textColor = [0, 100, 0]; data.cell.styles.fontStyle = 'bold'; } } } });
-                doc.save(`Executive_Report_${dateText.replace(/ /g, '_')}.pdf`); showNotification("REPORT EXPORTED");
+                const catSummaryData = Object.entries(categorySummary).map(([cat, vals]) => [ cat, vals.used.toFixed(1), vals.sold.toFixed(1), vals.variance.toFixed(1), `${vals.used > 0 ? ((vals.variance / vals.used) * 100).toFixed(1) : '0.0'}%` ]); doc.autoTable({ startY: 75, head: [['Category', 'Used', 'Sold', 'Variance', '% Var']], body: catSummaryData, theme: 'grid', headStyles: { fillColor: [55, 65, 81], textColor: 255, fontStyle: 'bold' }, styles: { fontSize: 9, cellPadding: 3 }, columnStyles: { 3: { fontStyle: 'bold' }, 4: { halign: 'right' } }, didParseCell: function(data) { if (data.column.index === 3) { const val = parseFloat(data.cell.raw); data.cell.styles.textColor = val < 0 ? [220, 38, 38] : [22, 163, 74]; } } }); let yPos = doc.lastAutoTable.finalY + 10; if (chartImg1) { doc.addImage(chartImg1, 'JPEG', 15, yPos, 80, 60); } if (chartImg2) { doc.addImage(chartImg2, 'JPEG', 105, yPos, 90, 60); } doc.addPage(); doc.setFontSize(16); doc.setTextColor(40); doc.text("Top Loss Leaders", 15, 20); doc.autoTable({ startY: 30, head: [['Item Name', 'Category', 'Missing Units']], body: topLosses.map(i => [i.name, i.category, i.diff.toFixed(2)]), theme: 'striped', headStyles: { fillColor: [220, 38, 38] }, styles: { fontSize: 10 } }); doc.addPage(); doc.setFontSize(16); doc.setTextColor(40); doc.text("Detailed Inventory Report", 15, 20); doc.autoTable({ startY: 30, head: [['Product', 'Cat', 'Start', 'Buy', 'End', 'Used', 'Sold', 'Diff']], body: items.map(i => [ i.name, i.category.split(' ')[0], i.totalStart, i.purchases || 0, i.totalPhys, i.systemConsumption.toFixed(2), i.sales.toFixed(2), i.diff.toFixed(2) ]), styles: { fontSize: 8, cellPadding: 2, textColor: [0,0,0] }, headStyles: { fillColor: [30, 30, 30], textColor: 255 }, didParseCell: function(data) { if (data.section === 'body' && data.column.index === 7) { const val = parseFloat(data.cell.raw); if (val < -0.1) { data.cell.styles.fillColor = [255, 230, 230]; data.cell.styles.textColor = [180, 0, 0]; data.cell.styles.fontStyle = 'bold'; } else if (val > 0.1) { data.cell.styles.fillColor = [230, 255, 230]; data.cell.styles.textColor = [0, 100, 0]; data.cell.styles.fontStyle = 'bold'; } } } }); doc.save(`Executive_Report_${dateText.replace(/ /g, '_')}.pdf`); showNotification("REPORT EXPORTED");
             };
 
-            const downloadReport = () => {
-                const dateObj = new Date(); const safeDate = dateObj.toISOString().split('T')[0]; let items = []; let totalConsumed = 0; let totalSold = 0; let totalDiff = 0;
-                data.forEach(cat => { cat.items.forEach(item => { const totalPhys = (parseFloat(item.bar1)||0) + (parseFloat(item.bar2)||0) + (parseFloat(item.bodega)||0) + (parseFloat(item.barroluco)||0); const totalStart = (parseFloat(item.start_bar1)||0) + (parseFloat(item.start_bar2)||0) + (parseFloat(item.start_bodega)||0) + (parseFloat(item.start_barroluco)||0); const purchases = parseFloat(item.purchases)||0; const sales = parseFloat(item.sales)||0; const systemConsumption = totalStart + purchases - totalPhys; const diff = sales - systemConsumption; if (systemConsumption > 0 || sales > 0) { items.push({ ...item, category: cat.category, totalStart, totalPhys, purchases, systemConsumption, sales, diff }); totalConsumed += systemConsumption; totalSold += sales; totalDiff += diff; } })});
-                let csv = `EXECUTIVE REPORT\nDate: ${safeDate}\n\nSUMMARY\nTotal Consumed,${totalConsumed.toFixed(2)}\nTotal Sold,${totalSold.toFixed(2)}\nNet Diff,${totalDiff.toFixed(2)}\n\nDETAILS\nPRODUCT,CAT,START,BUY,END,USED,SOLD,DIFF\n`; items.forEach(i => { csv += `"${i.name}","${i.category}",${i.totalStart},${i.purchases},${i.totalPhys},${i.systemConsumption},${i.sales},${i.diff}\n` });
-                const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `Report_${safeDate}.csv`; document.body.appendChild(link); link.click(); document.body.removeChild(link);
-            };
-
+            const downloadReport = () => { const dateObj = new Date(); const safeDate = dateObj.toISOString().split('T')[0]; let items = []; let totalConsumed = 0; let totalSold = 0; let totalDiff = 0; data.forEach(cat => { cat.items.forEach(item => { const totalPhys = (parseFloat(item.bar1)||0) + (parseFloat(item.bar2)||0) + (parseFloat(item.bodega)||0) + (parseFloat(item.barroluco)||0); const totalStart = (parseFloat(item.start_bar1)||0) + (parseFloat(item.start_bar2)||0) + (parseFloat(item.start_bodega)||0) + (parseFloat(item.start_barroluco)||0); const purchases = parseFloat(item.purchases)||0; const sales = parseFloat(item.sales)||0; const systemConsumption = totalStart + purchases - totalPhys; const diff = sales - systemConsumption; if (systemConsumption > 0 || sales > 0) { items.push({ ...item, category: cat.category, totalStart, totalPhys, purchases, systemConsumption, sales, diff }); totalConsumed += systemConsumption; totalSold += sales; totalDiff += diff; } })}); let csv = `EXECUTIVE REPORT\nDate: ${safeDate}\n\nSUMMARY\nTotal Consumed,${totalConsumed.toFixed(2)}\nTotal Sold,${totalSold.toFixed(2)}\nNet Diff,${totalDiff.toFixed(2)}\n\nDETAILS\nPRODUCT,CAT,START,BUY,END,USED,SOLD,DIFF\n`; items.forEach(i => { csv += `"${i.name}","${i.category}",${i.totalStart},${i.purchases},${i.totalPhys},${i.systemConsumption},${i.sales},${i.diff}\n` }); const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `Report_${safeDate}.csv`; document.body.appendChild(link); link.click(); document.body.removeChild(link); };
             const updateItem = (itemId, fieldOrObj, value) => { const timestamp = Date.now(); const newData = data.map(cat => ({ ...cat, items: cat.items.map(item => { if (item.id === itemId) { if (typeof fieldOrObj === 'object' && fieldOrObj !== null) return { ...item, ...fieldOrObj, lastUpdated: timestamp }; return { ...item, [fieldOrObj]: value, lastUpdated: timestamp }; } return item; }) })); saveData(newData); };
-            
-            const batchUpdateItems = (updates) => {
-                const timestamp = Date.now();
-                const newData = data.map(cat => ({
-                    ...cat,
-                    items: cat.items.map(item => {
-                        const update = updates.find(u => u.id === item.id);
-                        if (update) return { ...item, ...update.changes, lastUpdated: timestamp };
-                        return item;
-                    })
-                }));
-                saveData(newData);
-            };
-
-            const saveData = (newData) => {
-                setData(newData); const fb = window.fb;
-                if (isCloud && user && fb) { 
-                    setIsSaving(true); 
-                    isSavingRef.current = true; 
-                    
-                    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current); 
-                    saveTimeoutRef.current = setTimeout(() => { 
-                        try { 
-                            const db = fb.getFirestore(); 
-                            const collectionPath = ENV_APP_ID !== 'default-app-id' ? `artifacts/${ENV_APP_ID}/public/data/inventory` : 'inventory'; 
-                            
-                            fb.setDoc(fb.doc(db, collectionPath, 'master'), { 
-                                items: newData, 
-                                mobileAccess: mobileSyncRef.current 
-                            }, { merge: true })
-                            .then(() => { setIsSaving(false); isSavingRef.current = false; })
-                            .catch(() => { setIsSaving(false); isSavingRef.current = false; }); 
-                        } catch(e) { 
-                            console.error(e); setIsSaving(false); isSavingRef.current = false;
-                        } 
-                    }, 2000); 
-                } else { SafeStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newData)); }
-            };
-
+            const batchUpdateItems = (updates) => { const timestamp = Date.now(); const newData = data.map(cat => ({ ...cat, items: cat.items.map(item => { const update = updates.find(u => u.id === item.id); if (update) return { ...item, ...update.changes, lastUpdated: timestamp }; return item; }) })); saveData(newData); };
+            const saveData = (newData) => { setData(newData); const fb = window.fb; if (isCloud && user && fb) { setIsSaving(true); isSavingRef.current = true; if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current); saveTimeoutRef.current = setTimeout(() => { try { const db = fb.getFirestore(); const collectionPath = ENV_APP_ID !== 'default-app-id' ? `artifacts/${ENV_APP_ID}/public/data/inventory` : 'inventory'; fb.setDoc(fb.doc(db, collectionPath, 'master'), { items: newData, mobileAccess: mobileSyncRef.current }, { merge: true }).then(() => { setIsSaving(false); isSavingRef.current = false; }).catch(() => { setIsSaving(false); isSavingRef.current = false; }); } catch(e) { console.error(e); setIsSaving(false); isSavingRef.current = false; } }, 2000); } else { SafeStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newData)); } };
             const showNotification = (msg) => { setNotification(msg); setTimeout(() => setNotification(null), 3000); };
             const handleAddNewProduct = (name, category) => { const newId = `custom-${Date.now()}`; const newItem = createItem(newId, name); const newData = data.map(cat => { if (cat.category === category) return { ...cat, items: [...cat.items, newItem] }; return cat; }); saveData(newData); showNotification(`ADDED: ${name}`); };
             const handleLogoChange = (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (ev) => { const base64 = ev.target.result; setLogo(base64); SafeStorage.setItem('BAR_LOGO', base64); showNotification("LOGO UPDATED"); }; reader.readAsDataURL(file); };
@@ -1359,6 +1234,21 @@
             const requestItemScan = (itemId, type = 'unit') => { showNotification("Feature not available in PC Version"); };
             const handleDeleteProduct = (item) => { setModalConfig({ title: "Delete Item?", message: `Permanently remove "${item.name}"?`, isDestructive: true, onConfirm: () => { const newData = data.map(cat => ({ ...cat, items: cat.items.filter(i => i.id !== item.id) })); saveData(newData); setModalConfig(null); showNotification(`DELETED: ${item.name}`); } }); };
             const confirmNewPeriod = () => { setModalConfig({ title: "Start Next Period?", message: "Moves Physical to On Hand.\nClears Sales/Purchases.", isDestructive: false, onConfirm: () => { const newData = data.map(cat => ({ ...cat, items: cat.items.map(item => { const physBodega = parseFloat(item.bodega) || 0; return { ...item, start_bar1: item.bar1 !== "" ? item.bar1 : 0, start_bar2: item.bar2 !== "" ? item.bar2 : 0, start_bodega: physBodega, start_barroluco: item.barroluco !== "" ? item.barroluco : 0, bar1: "", bar2: "", bodega: "", barroluco: "", purchases: "", sales: "", sold_bottles: "", sold_shots: "", sold_comps: "", bar1_cooler: "", bar1_small_cooler_1: "", bar1_small_cooler_2: "", bar1_reaching: "", bar1_shelf_full: "", bar1_shelf_open: "", bar1_well_1: "", bar1_well_2: "", bar2_cooler: "", bar2_small_cooler: "", bodega_closet: "", bodega_shelves: "" }; }) })); saveData(newData); setModalConfig(null); showNotification("PERIOD RESET COMPLETE"); } }); };
+            
+            // --- SECURITY LOGIC START ---
+            const performFactoryReset = () => {
+                if (securityCode === "Enzo2022") {
+                    saveData(INITIAL_DATA);
+                    setShowResetSecurity(false);
+                    setSecurityCode("");
+                    playSound('success');
+                    showNotification("FACTORY RESET COMPLETE");
+                } else {
+                    playSound('error');
+                    showNotification("ACCESS DENIED: WRONG CODE");
+                }
+            };
+
             const confirmClearAll = () => {
                 setModalConfig({
                     title: "Reset Inventory Options",
@@ -1366,20 +1256,19 @@
                     isDestructive: true,
                     customActions: [
                         { label: "Counts Only", class: "bg-indigo-900/50 hover:bg-indigo-600 text-white border border-indigo-500", onClick: () => { const newData = data.map(cat => ({ ...cat, items: cat.items.map(item => ({ ...item, bar1: "", bar2: "", bodega: "", barroluco: "", start_bar1: "", start_bar2: "", start_bodega: "", start_barroluco: "", purchases: "", sales: "", sold_bottles: "", sold_shots: "", sold_comps: "", bar1_cooler: "", bar1_small_cooler_1: "", bar1_small_cooler_2: "", bar1_reaching: "", bar1_shelf_full: "", bar1_shelf_open: "", bar1_well_1: "", bar1_well_2: "", bar2_cooler: "", bar2_small_cooler: "", bodega_closet: "", bodega_shelves: "" })) })); saveData(newData); setModalConfig(null); showNotification("COUNTS RESET"); } },
-                        { label: "Factory Reset", class: "bg-red-900/50 hover:bg-red-600 text-white border border-red-500", onClick: () => { saveData(INITIAL_DATA); setModalConfig(null); showNotification("FACTORY RESET COMPLETE"); } }
+                        { label: "Factory Reset", class: "bg-red-900/50 hover:bg-red-600 text-white border border-red-500", onClick: () => { 
+                            setModalConfig(null); 
+                            setSecurityCode(""); 
+                            setShowResetSecurity(true); 
+                        }}
                     ]
                 });
             };
+            // --- SECURITY LOGIC END ---
+
             const generateShoppingList = () => { const toBuy = []; data.forEach(cat => { cat.items.forEach(item => { const target = PAR_LEVELS[item.name]; if (target !== undefined) { const current = (parseFloat(item.bar1)||0) + (parseFloat(item.bar2)||0) + (parseFloat(item.bodega)||0) + (parseFloat(item.barroluco)||0); const needed = target - current; if (needed > 0) { let displayQuantity = needed; let details = null; const customRound = (val) => { const decimal = val - Math.floor(val); return decimal > 0.5 ? Math.ceil(val) : Math.floor(val); }; if (cat.category.includes("Beers") || item.name.includes("Red Bull")) { const cases = customRound(needed / 24); displayQuantity = `${cases} Cases`; details = `(${needed} units needed)`; } else { displayQuantity = customRound(needed); } toBuy.push({ name: item.name, current, target, needed: displayQuantity, details }); } } }); }); setShoppingItems(toBuy); setShowShopping(true); };
             const getIcon = (n) => { if (n.includes("Premium")) return Icons.GlassWater; if (n.includes("Wells")) return Icons.Package; if (n.includes("Beers")) return Icons.Beer; if (n.includes("Wines")) return Icons.Wine; if (n.includes("Non Alcoholic")) return Icons.Leaf; return Icons.RefreshCw; };
-            const filteredData = useMemo(() => { 
-                let filtered = data;
-                if (categoryFilter) { filtered = data.filter(cat => cat.category === categoryFilter); }
-                if (!searchTerm) return filtered; 
-                const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); 
-                const term = normalize(searchTerm); const tightTerm = term.replace(/\s+/g, ''); 
-                return filtered.map(cat => ({ ...cat, items: cat.items.filter(item => { const nameMatch = normalize(item.name).includes(term); const catMatch = normalize(cat.category).includes(term); const tightMatch = normalize(item.name).replace(/\s+/g, '').includes(tightTerm); return nameMatch || catMatch || tightMatch; }) })).filter(cat => cat.items.length > 0); 
-            }, [data, searchTerm, categoryFilter]);
+            const filteredData = useMemo(() => { let filtered = data; if (categoryFilter) { filtered = data.filter(cat => cat.category === categoryFilter); } if (!searchTerm) return filtered; const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); const term = normalize(searchTerm); const tightTerm = term.replace(/\s+/g, ''); return filtered.map(cat => ({ ...cat, items: cat.items.filter(item => { const nameMatch = normalize(item.name).includes(term); const catMatch = normalize(cat.category).includes(term); const tightMatch = normalize(item.name).replace(/\s+/g, '').includes(tightTerm); return nameMatch || catMatch || tightMatch; }) })).filter(cat => cat.items.length > 0); }, [data, searchTerm, categoryFilter]);
 
             if (loading) return <div className="flex items-center justify-center min-h-screen text-cyan-500 font-mono tracking-widest animate-pulse">ESTABLISHING UPLINK...</div>;
             if (!isAuthenticated) return <ErrorBoundary><LoginScreen onLogin={() => { setIsAuthenticated(true); playSound('success'); }} logoSrc={logo} onLogoUpload={handleLogoChange}/></ErrorBoundary>;
@@ -1409,10 +1298,8 @@
                             onFilterCategory={setCategoryFilter}
                             currentFilter={categoryFilter}
                             onStarClick={() => setShowPremiumModal(true)}
-                            // PASAMOS PROPS DEL MÓVIL AL HEADER
                             mobileSyncEnabled={mobileSyncEnabled}
                             onToggleMobileSync={toggleMobileSync}
-                            // PROPS DEL BOTÓN DE PESOS (LA RUEDITA)
                             onShowBottleSpecs={() => setShowBottleSpecs(true)}
                         />
                         {showSearch && (
@@ -1439,22 +1326,34 @@
                     {showPurchasesLog && <PurchasesLogModal isOpen={showPurchasesLog} onClose={() => setShowPurchasesLog(false)} data={data} />}
                     {showSalesEntry && <SalesEntryModal isOpen={showSalesEntry} onClose={() => setShowSalesEntry(false)} data={data} onUpdate={updateItem} onBatchUpdate={batchUpdateItems} />}
                     {showCountReview && <CountReviewModal isOpen={showCountReview} onClose={() => setShowCountReview(false)} data={data} onUpdate={updateItem} />}
-                    
-                    {/* PREMIUM MODAL RENDER */}
-                    <PremiumControlModal 
-                        isOpen={showPremiumModal}
-                        onClose={() => setShowPremiumModal(false)}
-                        data={data}
-                        onUpdateStickers={updateItemStickers}
-                    />
+                    <PremiumControlModal isOpen={showPremiumModal} onClose={() => setShowPremiumModal(false)} data={data} onUpdateStickers={updateItemStickers} />
+                    <BottleSpecsModal isOpen={showBottleSpecs} onClose={() => setShowBottleSpecs(false)} data={data} onUpdate={updateItem} />
 
-                    {/* --- NUEVO MODAL DE PESOS RENDERIZADO AQUÍ --- */}
-                    <BottleSpecsModal 
-                        isOpen={showBottleSpecs}
-                        onClose={() => setShowBottleSpecs(false)}
-                        data={data}
-                        onUpdate={updateItem}
-                    />
+                    {/* --- SECURITY CHECK MODAL --- */}
+                    {showResetSecurity && (
+                        <div className="fixed inset-0 bg-black/95 flex flex-col items-center justify-center z-[110] backdrop-blur-xl animate-in p-4">
+                            <div className="bg-[#050505] border border-red-500/50 w-full max-w-sm rounded-2xl p-8 shadow-[0_0_50px_rgba(239,68,68,0.2)] text-center relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-600 to-transparent"></div>
+                                <Icons.AlertTriangle size={48} className="text-red-500 mx-auto mb-4" />
+                                <h2 className="text-2xl font-black text-white mb-2 uppercase">Security Check</h2>
+                                <p className="text-white/50 text-xs mb-6 font-mono">AUTHORIZED PERSONNEL ONLY</p>
+                                
+                                <input 
+                                    type="password" 
+                                    value={securityCode}
+                                    onChange={(e) => setSecurityCode(e.target.value)}
+                                    className="w-full bg-black/50 border border-red-900/50 rounded-xl px-4 py-4 text-center text-white font-mono text-lg focus:border-red-500 focus:shadow-[0_0_20px_rgba(239,68,68,0.3)] outline-none mb-6 tracking-widest"
+                                    placeholder="ENTER PASSCODE"
+                                    autoFocus
+                                />
+                                
+                                <div className="flex gap-3">
+                                    <button onClick={() => setShowResetSecurity(false)} className="flex-1 py-3 rounded-xl bg-white/5 text-white/50 hover:text-white font-bold text-xs uppercase tracking-wider">Cancel</button>
+                                    <button onClick={performFactoryReset} className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg">Confirm</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {notification && (<div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-[#1D1F23] text-white px-8 py-4 rounded-2xl shadow-[0_0_30px_rgba(0,0,0,0.5)] border border-emerald-500/50 flex items-center gap-4 animate-in z-[100] whitespace-nowrap backdrop-blur-xl"><Icons.CheckCircle size={24} className="text-emerald-400 drop-shadow-[0_0_10px_rgba(16,185,129,0.8)]" /><span className="font-bold text-sm tracking-widest uppercase">{notification}</span></div>)}
                 </div>
