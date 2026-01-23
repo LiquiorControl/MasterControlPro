@@ -1139,12 +1139,13 @@
             const [searchTerm, setSearchTerm] = useState("");
             const [categoryFilter, setCategoryFilter] = useState(null);
 
-            // NUEVOS ESTADOS
+            // NUEVOS ESTADOS DE FUNCIONALIDAD
             const [showBottleSpecs, setShowBottleSpecs] = useState(false); 
             const [showPremiumModal, setShowPremiumModal] = useState(false);
             
-            // --- ESTADOS PARA SEGURIDAD DE RESET ---
+            // --- ESTADOS DE SEGURIDAD (RESET & SPECS) ---
             const [showResetSecurity, setShowResetSecurity] = useState(false);
+            const [showSpecsSecurity, setShowSpecsSecurity] = useState(false); // Nuevo bloqueo para Specs
             const [securityCode, setSecurityCode] = useState("");
 
             const toggleMobileSync = async () => {
@@ -1249,6 +1250,18 @@
                 }
             };
 
+            const verifySpecsAccess = () => {
+                if (securityCode === "Enzo2022") {
+                    playSound('success');
+                    setShowSpecsSecurity(false);
+                    setSecurityCode("");
+                    setShowBottleSpecs(true);
+                } else {
+                    playSound('error');
+                    showNotification("ACCESS DENIED: WRONG CODE");
+                }
+            };
+
             const confirmClearAll = () => {
                 setModalConfig({
                     title: "Reset Inventory Options",
@@ -1300,7 +1313,7 @@
                             onStarClick={() => setShowPremiumModal(true)}
                             mobileSyncEnabled={mobileSyncEnabled}
                             onToggleMobileSync={toggleMobileSync}
-                            onShowBottleSpecs={() => setShowBottleSpecs(true)}
+                            onShowBottleSpecs={() => { setSecurityCode(""); setShowSpecsSecurity(true); }}
                         />
                         {showSearch && (
                             <div className="bg-[#050505]/95 p-4 border-b border-white/10 backdrop-blur-md animate-in"><div className="max-w-6xl mx-auto relative flex gap-3"><div className="relative flex-1"><Icons.Search className="absolute left-4 top-1/2 -translate-y-1/2 text-cyan-500" size={20} /><input type="text" placeholder="QUERY DATABASE..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-black/50 rounded-xl pl-12 pr-4 py-4 text-white border border-white/10 focus:outline-none focus:border-cyan-500 focus:shadow-[0_0_20px_rgba(6,182,212,0.2)] transition-all placeholder:text-white/20 font-bold tracking-wider text-sm" autoFocus/></div><button onClick={() => { setShowSearch(false); setSearchTerm(""); }} className="bg-white/5 hover:bg-white/10 text-white px-6 rounded-xl font-bold border border-white/5 uppercase tracking-widest text-xs">Close</button></div></div>
@@ -1329,7 +1342,7 @@
                     <PremiumControlModal isOpen={showPremiumModal} onClose={() => setShowPremiumModal(false)} data={data} onUpdateStickers={updateItemStickers} />
                     <BottleSpecsModal isOpen={showBottleSpecs} onClose={() => setShowBottleSpecs(false)} data={data} onUpdate={updateItem} />
 
-                    {/* --- SECURITY CHECK MODAL --- */}
+                    {/* --- FACTORY RESET SECURITY MODAL --- */}
                     {showResetSecurity && (
                         <div className="fixed inset-0 bg-black/95 flex flex-col items-center justify-center z-[110] backdrop-blur-xl animate-in p-4">
                             <div className="bg-[#050505] border border-red-500/50 w-full max-w-sm rounded-2xl p-8 shadow-[0_0_50px_rgba(239,68,68,0.2)] text-center relative overflow-hidden">
@@ -1350,6 +1363,32 @@
                                 <div className="flex gap-3">
                                     <button onClick={() => setShowResetSecurity(false)} className="flex-1 py-3 rounded-xl bg-white/5 text-white/50 hover:text-white font-bold text-xs uppercase tracking-wider">Cancel</button>
                                     <button onClick={performFactoryReset} className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg">Confirm</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* --- BOTTLE SPECS SECURITY MODAL (SAME CODE) --- */}
+                    {showSpecsSecurity && (
+                        <div className="fixed inset-0 bg-black/95 flex flex-col items-center justify-center z-[110] backdrop-blur-xl animate-in p-4">
+                            <div className="bg-[#050505] border border-purple-500/50 w-full max-w-sm rounded-2xl p-8 shadow-[0_0_50px_rgba(168,85,247,0.2)] text-center relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-600 to-transparent"></div>
+                                <Icons.Settings size={48} className="text-purple-500 mx-auto mb-4" />
+                                <h2 className="text-2xl font-black text-white mb-2 uppercase">Configuration Access</h2>
+                                <p className="text-white/50 text-xs mb-6 font-mono">MANAGEMENT AUTHORIZATION REQUIRED</p>
+                                
+                                <input 
+                                    type="password" 
+                                    value={securityCode}
+                                    onChange={(e) => setSecurityCode(e.target.value)}
+                                    className="w-full bg-black/50 border border-purple-900/50 rounded-xl px-4 py-4 text-center text-white font-mono text-lg focus:border-purple-500 focus:shadow-[0_0_20px_rgba(168,85,247,0.3)] outline-none mb-6 tracking-widest"
+                                    placeholder="ENTER PASSCODE"
+                                    autoFocus
+                                />
+                                
+                                <div className="flex gap-3">
+                                    <button onClick={() => setShowSpecsSecurity(false)} className="flex-1 py-3 rounded-xl bg-white/5 text-white/50 hover:text-white font-bold text-xs uppercase tracking-wider">Cancel</button>
+                                    <button onClick={verifySpecsAccess} className="flex-1 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg">Access</button>
                                 </div>
                             </div>
                         </div>
