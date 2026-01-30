@@ -1164,7 +1164,70 @@
             const handleBackup = () => { const blob = new Blob([JSON.stringify(data)], { type: "application/json" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `Bar_Backup_${new Date().toLocaleDateString().replace(/\//g, '-')}.json`; document.body.appendChild(link); link.click(); document.body.removeChild(link); };
             const requestItemScan = (itemId, type = 'unit') => { showNotification("Feature not available in PC Version"); };
             const handleDeleteProduct = (item) => { setModalConfig({ title: "Delete Item?", message: `Permanently remove "${item.name}"?`, isDestructive: true, onConfirm: () => { const newData = data.map(cat => ({ ...cat, items: cat.items.filter(i => i.id !== item.id) })); saveData(newData); setModalConfig(null); showNotification(`DELETED: ${item.name}`); } }); };
-            const confirmNewPeriod = () => { setModalConfig({ title: "Start Next Period?", message: "Moves Physical to On Hand.\nClears Sales/Purchases.", isDestructive: false, onConfirm: () => { const newData = data.map(cat => ({ ...cat, items: cat.items.map(item => { const physBodega = parseFloat(item.bodega) || 0; return { ...item, start_bar1: item.bar1 !== "" ? item.bar1 : 0, start_bar2: item.bar2 !== "" ? item.bar2 : 0, start_bodega: physBodega, start_barroluco: item.barroluco !== "" ? item.barroluco : 0, bar1: "", bar2: "", bodega: "", barroluco: "", purchases: "", sales: "", sold_bottles: "", sold_shots: "", sold_comps: "", bar1_cooler: "", bar1_small_cooler_1: "", bar1_small_cooler_2: "", bar1_reaching: "", bar1_shelf_full: "", bar1_shelf_open: "", bar1_well_1: "", bar1_well_2: "", bar2_cooler: "", bar2_small_cooler: "", bodega_closet: "", bodega_shelves: "" }; }) })); saveData(newData); setModalConfig(null); showNotification("PERIOD RESET COMPLETE"); } }); };
+            const confirmNewPeriod = () => { 
+                setModalConfig({ 
+                    title: "Start Next Period?", 
+                    message: "Generates 'Last Count' snapshot.\nClears current counts & SLOTS.", 
+                    isDestructive: false, 
+                    onConfirm: () => { 
+                        const newData = data.map(cat => ({ 
+                            ...cat, 
+                            items: cat.items.map(item => { 
+                                // 1. SNAPSHOT: Guardar historial por zona
+                                const zoneHistory = {};
+                                Object.values(ZONES_CONFIG).forEach(zoneList => {
+                                    zoneList.forEach(z => {
+                                        zoneHistory[`last_${z.id}`] = parseFloat(item[z.id]) || 0;
+                                    });
+                                });
+                                ['bar1', 'bar2', 'bodega', 'barroluco'].forEach(mainZone => {
+                                    zoneHistory[`last_${mainZone}`] = parseFloat(item[mainZone]) || 0;
+                                });
+
+                                // 2. ON HAND GLOBAL
+                                const valBar1 = parseFloat(item.bar1) || 0;
+                                const valBar2 = parseFloat(item.bar2) || 0;
+                                const valBodega = parseFloat(item.bodega) || 0;
+                                const valBarroluco = parseFloat(item.barroluco) || 0;
+                                const totalEndingCount = valBar1 + valBar2 + valBodega + valBarroluco;
+
+                                return { 
+                                    ...item, 
+                                    ...zoneHistory, 
+                                    on_hand: totalEndingCount, // El "Last" global
+
+                                    // Mover a Start
+                                    start_bar1: valBar1, 
+                                    start_bar2: valBar2, 
+                                    start_bodega: valBodega, 
+                                    start_barroluco: valBarroluco, 
+                                    
+                                    // RESET PRINCIPAL
+                                    bar1: "", bar2: "", bodega: "", barroluco: "", 
+                                    purchases: "", sales: "", 
+                                    sold_bottles: "", sold_shots: "", sold_comps: "", 
+                                    
+                                    // RESET SUB-ZONAS
+                                    bar1_cooler: "", 
+                                    
+                                    // --- CORRECCIÓN AQUÍ: RESETEAR LOS SLOTS A CEROS ---
+                                    breakdown_bar1_cooler: [0, 0, 0, 0], 
+                                    // ---------------------------------------------------
+
+                                    bar1_small_cooler_1: "", bar1_small_cooler_2: "", 
+                                    bar1_reaching: "", bar1_shelf_full: "", bar1_shelf_open: "", 
+                                    bar1_well_1: "", bar1_well_2: "", 
+                                    bar2_cooler: "", bar2_small_cooler: "", 
+                                    bodega_closet: "", bodega_shelves: "" 
+                                }; 
+                            }) 
+                        })); 
+                        saveData(newData); 
+                        setModalConfig(null); 
+                        showNotification("PERIOD RESET & SLOTS CLEARED"); 
+                    } 
+                }); 
+            };
             
             const performFactoryReset = () => {
                 if (securityCode === "Enzo2022") { saveData(INITIAL_DATA); setShowResetSecurity(false); setSecurityCode(""); playSound('success'); showNotification("FACTORY RESET COMPLETE"); } 
