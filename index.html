@@ -1194,33 +1194,35 @@
             const handleBackup = () => { const blob = new Blob([JSON.stringify(data)], { type: "application/json" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `Bar_Backup_${new Date().toLocaleDateString().replace(/\//g, '-')}.json`; document.body.appendChild(link); link.click(); document.body.removeChild(link); };
             const requestItemScan = (itemId, type = 'unit') => { showNotification("Feature not available in PC Version"); };
             const handleDeleteProduct = (item) => { setModalConfig({ title: "Delete Item?", message: `Permanently remove "${item.name}"?`, isDestructive: true, onConfirm: () => { const newData = data.map(cat => ({ ...cat, items: cat.items.filter(i => i.id !== item.id) })); saveData(newData); setModalConfig(null); showNotification(`DELETED: ${item.name}`); } }); };
-            // --- PEGAR ESTO EN MASTER CONTROL (Reemplazar la función confirmNewPeriod existente) ---
+           // --- PEGAR ESTO EN MASTER CONTROL (Reemplazar la función confirmNewPeriod) ---
             const confirmNewPeriod = () => { 
                 setModalConfig({ 
                     title: "Start Next Period?", 
-                    message: "Generates 'Last Count' snapshot for Quick Mode.\nClears current counts & SLOTS.", 
+                    message: "⚠️ This will RESET counts to 0.\nIt will save a SNAPSHOT for the Scanner.", 
                     isDestructive: false, 
                     onConfirm: () => { 
                         const newData = data.map(cat => ({ 
                             ...cat, 
                             items: cat.items.map(item => { 
-                                // 1. SNAPSHOT: Guardar historial exacto por cada zona pequeña
+                                // 1. DEFINIR ZONAS A GUARDAR (Hardcoded para seguridad)
+                                // Estas son exactamente las zonas que usa tu Scanner
+                                const allZones = [
+                                    'bar1_cooler', 'bar1_small_cooler_1', 'bar1_small_cooler_2', 
+                                    'bar1_reaching', 'bar1_shelf_full', 'bar1_shelf_open', 
+                                    'bar1_well_1', 'bar1_well_2',
+                                    'bar2_cooler', 'bar2_small_cooler',
+                                    'bodega_closet', 'bodega_shelves',
+                                    'bar1', 'bar2', 'bodega', 'barroluco', 'purchases' // También las generales
+                                ];
+
+                                // 2. CREAR SNAPSHOT (FOTO) DE CADA ZONA
                                 const zoneHistory = {};
-                                
-                                // Recorremos tu configuración de zonas para guardar lo que hay en cada rincón
-                                Object.values(ZONES_CONFIG).forEach(zoneList => {
-                                    zoneList.forEach(z => {
-                                        // AQUI ESTÁ LA CLAVE: Guardamos "last_bar1_shelf_open" = 0.34
-                                        zoneHistory[`last_${z.id}`] = parseFloat(item[z.id]) || 0;
-                                    });
+                                allZones.forEach(zoneId => {
+                                    // Guardamos: last_bar1_shelf_open = 5 (lo que tenga actualmente)
+                                    zoneHistory[`last_${zoneId}`] = parseFloat(item[zoneId]) || 0;
                                 });
 
-                                // También guardamos zonas principales por si acaso
-                                ['bar1', 'bar2', 'bodega', 'barroluco'].forEach(mainZone => {
-                                    zoneHistory[`last_${mainZone}`] = parseFloat(item[mainZone]) || 0;
-                                });
-
-                                // 2. Calcular On Hand Global (Total General)
+                                // 3. CALCULAR ON HAND GLOBAL (Para reportes)
                                 const valBar1 = parseFloat(item.bar1) || 0;
                                 const valBar2 = parseFloat(item.bar2) || 0;
                                 const valBodega = parseFloat(item.bodega) || 0;
@@ -1229,24 +1231,23 @@
 
                                 return { 
                                     ...item, 
-                                    ...zoneHistory, // Inyectamos el historial detallado
-                                    on_hand: totalEndingCount, // Inyectamos el total global
+                                    ...zoneHistory, // <--- AQUÍ SE GUARDA EL HISTORIAL PARA EL SCANNER
+                                    on_hand: totalEndingCount, 
 
-                                    // Lógica normal de mover a Start
+                                    // Mover Conteos a Start (Inventario Inicial)
                                     start_bar1: valBar1, 
                                     start_bar2: valBar2, 
                                     start_bodega: valBodega, 
                                     start_barroluco: valBarroluco, 
                                     
-                                    // RESETEAR TODO A 0
+                                    // RESETEAR CONTADORES A 0
                                     bar1: "", bar2: "", bodega: "", barroluco: "", 
                                     purchases: "", sales: "", 
                                     sold_bottles: "", sold_shots: "", sold_comps: "", 
                                     
-                                    // RESETEAR ZONAS ESPECÍFICAS
+                                    // RESETEAR DETALLES DE ZONAS A 0
                                     bar1_cooler: "", 
-                                    breakdown_bar1_cooler: [0, 0, 0, 0], // Limpiar slots
-                                    
+                                    breakdown_bar1_cooler: [0, 0, 0, 0], // Reset Slots
                                     bar1_small_cooler_1: "", bar1_small_cooler_2: "", 
                                     bar1_reaching: "", bar1_shelf_full: "", bar1_shelf_open: "", 
                                     bar1_well_1: "", bar1_well_2: "", 
@@ -1257,7 +1258,7 @@
                         })); 
                         saveData(newData); 
                         setModalConfig(null); 
-                        showNotification("PERIOD RESET & HISTORY SAVED"); 
+                        showNotification("PERIOD ENDED: HISTORY SAVED"); 
                     } 
                 }); 
             };
