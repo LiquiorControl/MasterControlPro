@@ -741,7 +741,7 @@
                                     type="number" 
                                     min="1"
                                     placeholder="1" 
-                                    className="w-14 bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-center text-slate-800 font-mono text-sm focus:border-blue-500 outline-none"
+                                    className="w-16 h-14 bg-slate-50 border border-slate-200 rounded-xl px-2 text-center text-slate-800 font-mono text-xl font-bold focus:border-blue-500 outline-none"
                                     value={recipeQuantities[recipe.name] || ""}
                                     onChange={(e) => handleRecipeQtyChange(recipe.name, e.target.value)}
                                 />
@@ -756,7 +756,7 @@
                                             btn.classList.remove("bg-emerald-600", "text-white"); 
                                         }, 1000); 
                                     }} 
-                                    className="px-5 py-2 bg-slate-100 border border-slate-200 text-slate-600 hover:bg-blue-600 hover:text-white rounded-lg font-bold text-sm transition-all active:scale-95 shadow-sm whitespace-nowrap uppercase tracking-wider"
+                                    className="px-6 h-14 bg-slate-100 border border-slate-200 text-slate-600 hover:bg-blue-600 hover:text-white rounded-xl font-black text-sm transition-all active:scale-95 shadow-sm whitespace-nowrap uppercase tracking-wider"
                                 >
                                     Add
                                 </button>
@@ -789,15 +789,45 @@
                                         <div className="w-1 h-4 bg-blue-500 rounded-full"></div>
                                         <h3 className="text-blue-600 font-black text-sm uppercase tracking-[0.2em]">{cat.category}</h3>
                                     </div>
-                                    <div className="grid gap-3">{cat.items.map(item => {
+                                    <div className="grid gap-4">{cat.items.map(item => {
                                         const isUnit = cat.category.includes("Beers") || cat.category.includes("Seltzer") || cat.category.includes("Non");
                                         return (
-                                            <div key={item.id} className="bg-white p-4 rounded-xl border border-slate-200 flex flex-col gap-3 shadow-sm hover:border-blue-300 transition-all">
-                                                <div className="flex justify-between items-center"><span className="font-bold text-slate-800 text-sm tracking-wide">{item.name}</span><span className="text-emerald-600 font-mono font-bold text-xs bg-emerald-50 px-3 py-1 rounded border border-emerald-100">Total: {item.sales || 0}</span></div>
-                                                <div className="grid grid-cols-3 gap-3">
-                                                    <div className="relative"><label className="text-[9px] text-slate-400 uppercase font-bold block mb-1 tracking-widest">{isUnit ? 'Units' : 'Btls'}</label><input type="number" placeholder="0" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-center text-slate-800 font-mono text-sm focus:border-blue-500 outline-none" value={item.sold_bottles || ""} onChange={(e) => handleLocalSalesChange(item, 'bottles', e.target.value, cat.category)}/></div>
-                                                    <div className="relative"><label className="text-[9px] text-slate-400 uppercase font-bold block mb-1 tracking-widest">{isUnit ? 'Bkt(x6)' : 'Shots'}</label><input type="number" placeholder="0" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-center text-slate-800 font-mono text-sm focus:border-blue-500 outline-none" value={item.sold_shots || ""} onChange={(e) => handleLocalSalesChange(item, 'shots', e.target.value, cat.category)}/></div>
-                                                    <div className="relative"><label className="text-[9px] text-slate-400 uppercase font-bold block mb-1 tracking-widest">Comps</label><input type="number" placeholder="0" className="w-full bg-slate-50 border border-emerald-200 rounded-lg px-2 py-2 text-center text-emerald-800 font-mono text-sm focus:border-emerald-500 outline-none" value={item.sold_comps || ""} onChange={(e) => handleLocalSalesChange(item, 'comps', e.target.value, cat.category)}/></div>
+                                            <div key={item.id} className="bg-white p-6 rounded-2xl border border-slate-200 flex flex-col gap-4 shadow-sm hover:border-blue-300 transition-all">
+                                                <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                                                    <span className="font-black text-slate-800 text-lg tracking-wide">{item.name}</span>
+                                                    <span className="text-emerald-600 font-mono font-black text-xl bg-emerald-50 px-4 py-1 rounded-lg border border-emerald-100">Total: {item.sales || 0}</span>
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-4">
+                                                    <div className="relative group">
+                                                        <label className="text-[10px] text-slate-400 uppercase font-bold block mb-2 tracking-widest text-center group-focus-within:text-blue-500">{isUnit ? 'Units' : 'Bottles'}</label>
+                                                        <input 
+                                                            type="number" 
+                                                            placeholder="0" 
+                                                            className="w-full h-24 bg-slate-50 border-2 border-slate-200 rounded-2xl px-2 text-center text-slate-800 font-mono text-4xl font-black focus:border-blue-500 focus:bg-white outline-none transition-all placeholder-slate-300" 
+                                                            value={item.sold_bottles || ""} 
+                                                            onChange={(e) => handleLocalSalesChange(item, 'bottles', e.target.value, cat.category)}
+                                                        />
+                                                    </div>
+                                                    <div className="relative group">
+                                                        <label className="text-[10px] text-slate-400 uppercase font-bold block mb-2 tracking-widest text-center group-focus-within:text-blue-500">{isUnit ? 'Bucket (x6)' : 'Shots'}</label>
+                                                        <input 
+                                                            type="number" 
+                                                            placeholder="0" 
+                                                            className="w-full h-24 bg-slate-50 border-2 border-slate-200 rounded-2xl px-2 text-center text-slate-800 font-mono text-4xl font-black focus:border-blue-500 focus:bg-white outline-none transition-all placeholder-slate-300" 
+                                                            value={item.sold_shots || ""} 
+                                                            onChange={(e) => handleLocalSalesChange(item, 'shots', e.target.value, cat.category)}
+                                                        />
+                                                    </div>
+                                                    <div className="relative group">
+                                                        <label className="text-[10px] text-slate-400 uppercase font-bold block mb-2 tracking-widest text-center group-focus-within:text-emerald-500">Comps</label>
+                                                        <input 
+                                                            type="number" 
+                                                            placeholder="0" 
+                                                            className="w-full h-24 bg-emerald-50/50 border-2 border-emerald-100 rounded-2xl px-2 text-center text-emerald-700 font-mono text-4xl font-black focus:border-emerald-500 focus:bg-white outline-none transition-all placeholder-emerald-200" 
+                                                            value={item.sold_comps || ""} 
+                                                            onChange={(e) => handleLocalSalesChange(item, 'comps', e.target.value, cat.category)}
+                                                        />
+                                                    </div>
                                                 </div>
                                             </div>
                                         );
