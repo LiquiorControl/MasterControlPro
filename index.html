@@ -673,7 +673,7 @@
                 const isUnitBased = categoryName.includes("Beers") || categoryName.includes("Seltzer") || categoryName.includes("Non Alcoholic");
                 const isWells = categoryName.includes("Wells");
                 const bottleSizeOz = isWells ? 33.814 : 25.36;
-                let totalSales = 0; if (isUnitBased) totalSales = b + (s * 6) + c; else totalSales = b + ((s * 1.2) / bottleSizeOz) + c;
+                let totalSales = 0; if (isUnitBased) totalSales = b + (s * 6) + c; else totalSales = b + ((s * 1.5) / bottleSizeOz) + c;
                 onUpdate(item.id, { sold_bottles: newBottles, sold_shots: newShots, sold_comps: newComps, sales: totalSales > 0 ? totalSales.toFixed(2) : "" });
             };
 
