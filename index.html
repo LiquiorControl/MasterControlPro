@@ -290,11 +290,27 @@
             const hasPhysical = item.bar1 || item.bar2 || item.bodega || item.barroluco; const hasStart = item.start_bar1 || item.start_bar2 || item.start_bodega || item.start_barroluco;
             const bottleSizeOz = isWells ? 33.814 : 25.36; 
             const handleSalesChange = (type, val) => {
-                let newBottles = type === 'bottles' ? val : (item.sold_bottles || ""); let newShots = type === 'shots' ? val : (item.sold_shots || ""); let newComps = type === 'comps' ? val : (item.sold_comps || "");
-                const b = parseFloat(newBottles) || 0; const s = parseFloat(newShots) || 0; const c = parseFloat(newComps) || 0;
-                let totalSales = 0; if (isUnitBased) totalSales = b + (s * 6) + c; else totalSales = b + ((s * 1.2) / bottleSizeOz) + c;
-                onUpdate(item.id, { sold_bottles: newBottles, sold_shots: newShots, sold_comps: newComps, sales: totalSales > 0 ? totalSales.toFixed(2) : "" });
-            };
+    let newBottles = type === 'bottles' ? val : (item.sold_bottles || ""); 
+    let newShots = type === 'shots' ? val : (item.sold_shots || ""); 
+    let newComps = type === 'comps' ? val : (item.sold_comps || "");
+    const b = parseFloat(newBottles) || 0; 
+    const s = parseFloat(newShots) || 0; 
+    const c = parseFloat(newComps) || 0;
+    
+    let totalSales = 0; 
+    if (isUnitBased) {
+        totalSales = b + (s * 6) + c; 
+    } else {
+        // CAMBIO A 1.5 OZ POR SHOT
+        totalSales = b + ((s * 1.5) / bottleSizeOz) + c; 
+    }
+    onUpdate(item.id, { 
+        sold_bottles: newBottles, 
+        sold_shots: newShots, 
+        sold_comps: newComps, 
+        sales: totalSales > 0 ? totalSales.toFixed(2) : "" 
+    });
+};
             
             let statusColor = "bg-white border-slate-200"; 
             let badgeClass = "text-slate-500 bg-slate-100 border border-slate-200";
@@ -646,11 +662,57 @@
             if (!isOpen) return null;
             const [searchTerm, setSearchTerm] = useState("");
             const [activeTab, setActiveTab] = useState('products'); 
-            
+
+            // 1. Cargar la medida guardada o usar 1.5 por defecto
+            const [shotSize, setShotSize] = useState(() => {
+                const saved = localStorage.getItem('MASTER_SHOT_SIZE');
+                return saved ? parseFloat(saved) : 1.5;
+            });
+
+            // 2. Efecto para guardar en memoria y recalcular todo en tiempo real
+            useEffect(() => {
+                localStorage.setItem('MASTER_SHOT_SIZE', shotSize);
+                
+                const allUpdates = [];
+                data.forEach(cat => {
+                    cat.items.forEach(item => {
+                        if (item.sold_shots || item.sold_bottles || item.sold_comps) {
+                            const b = parseFloat(item.sold_bottles) || 0;
+                            const s = parseFloat(item.sold_shots) || 0;
+                            const c = parseFloat(item.sold_comps) || 0;
+                            const isUnitBased = cat.category.includes("Beers") || cat.category.includes("Seltzer") || cat.category.includes("Non Alcoholic");
+                            const isWells = cat.category.includes("Wells");
+                            const bottleSizeOz = isWells ? 33.814 : 25.36;
+
+                            let newTotalSales = 0;
+                            if (isUnitBased) {
+                                newTotalSales = b + (s * 6) + c;
+                            } else {
+                                newTotalSales = b + ((s * shotSize) / bottleSizeOz) + c;
+                            }
+
+                            if (item.sales !== newTotalSales.toFixed(2)) {
+                                allUpdates.push({
+                                    id: item.id,
+                                    changes: { sales: newTotalSales > 0 ? newTotalSales.toFixed(2) : "" }
+                                });
+                            }
+                        }
+                    });
+                });
+
+                if (allUpdates.length > 0) {
+                    onBatchUpdate(allUpdates);
+                }
+            }, [shotSize]);
+
             const filteredData = useMemo(() => {
                 if (!searchTerm) return data;
                 const lowerTerm = searchTerm.toLowerCase();
-                return data.map(cat => ({ ...cat, items: cat.items.filter(item => item.name.toLowerCase().includes(lowerTerm)) })).filter(cat => cat.items.length > 0);
+                return data.map(cat => ({ 
+                    ...cat, 
+                    items: cat.items.filter(item => item.name.toLowerCase().includes(lowerTerm)) 
+                })).filter(cat => cat.items.length > 0);
             }, [data, searchTerm]);
 
             const filteredCocktails = useMemo(() => {
@@ -673,7 +735,11 @@
                 const isUnitBased = categoryName.includes("Beers") || categoryName.includes("Seltzer") || categoryName.includes("Non Alcoholic");
                 const isWells = categoryName.includes("Wells");
                 const bottleSizeOz = isWells ? 33.814 : 25.36;
-                let totalSales = 0; if (isUnitBased) totalSales = b + (s * 6) + c; else totalSales = b + ((s * 1.5) / bottleSizeOz) + c;
+                
+                let totalSales = 0; 
+                if (isUnitBased) totalSales = b + (s * 6) + c; 
+                else totalSales = b + ((s * shotSize) / bottleSizeOz) + c; 
+                
                 onUpdate(item.id, { sold_bottles: newBottles, sold_shots: newShots, sold_comps: newComps, sales: totalSales > 0 ? totalSales.toFixed(2) : "" });
             };
 
@@ -688,35 +754,23 @@
                 if (qtyToAdd <= 0) return;
 
                 const updates = [];
-                let foundAny = false;
-
                 recipe.ingredients.forEach(ing => {
                     for (const cat of data) {
                         const item = cat.items.find(i => i.name === ing.name);
                         if (item) {
-                            foundAny = true;
                             const currentShots = parseFloat(item.sold_shots) || 0;
                             const addedShots = ing.qty * qtyToAdd;
                             const newShots = currentShots + addedShots;
-                            
                             const isWells = cat.category.includes("Wells");
                             const bottleSizeOz = isWells ? 33.814 : 25.36;
                             const b = parseFloat(item.sold_bottles) || 0;
                             const c = parseFloat(item.sold_comps) || 0;
-                            const totalSales = b + ((newShots * 1.2) / bottleSizeOz) + c;
+                            const totalSales = b + ((newShots * shotSize) / bottleSizeOz) + c;
 
-                            const existingUpdateIndex = updates.findIndex(u => u.id === item.id);
-                            if (existingUpdateIndex >= 0) {
-                                updates[existingUpdateIndex].changes.sold_shots += addedShots;
-                                const combinedShots = updates[existingUpdateIndex].changes.sold_shots;
-                                const combinedSales = b + ((combinedShots * 1.2) / bottleSizeOz) + c;
-                                updates[existingUpdateIndex].changes.sales = combinedSales > 0 ? combinedSales.toFixed(2) : "";
-                            } else {
-                                updates.push({
-                                    id: item.id,
-                                    changes: { sold_shots: newShots, sales: totalSales > 0 ? totalSales.toFixed(2) : "" }
-                                });
-                            }
+                            updates.push({
+                                id: item.id,
+                                changes: { sold_shots: newShots, sales: totalSales > 0 ? totalSales.toFixed(2) : "" }
+                            });
                             break; 
                         }
                     }
@@ -737,33 +791,11 @@
                                 <div className="text-xs text-slate-500 mt-1 font-mono">{recipe.ingredients.map(ing => `${ing.qty} ${ing.name}`).join(', ')}</div>
                             </div>
                             <div className="flex items-center gap-2">
-                                <input 
-                                    type="number" 
-                                    min="1"
-                                    placeholder="1" 
-                                    className="w-16 h-14 bg-slate-50 border border-slate-200 rounded-xl px-2 text-center text-slate-800 font-mono text-xl font-bold focus:border-blue-500 outline-none"
-                                    value={recipeQuantities[recipe.name] || ""}
-                                    onChange={(e) => handleRecipeQtyChange(recipe.name, e.target.value)}
-                                />
-                                <button 
-                                    onClick={(e) => { 
-                                        handleAddRecipe(recipe); 
-                                        const btn = e.currentTarget; 
-                                        btn.innerHTML = "✔"; 
-                                        btn.classList.add("bg-emerald-600", "text-white"); 
-                                        setTimeout(() => { 
-                                            btn.innerHTML = "Add"; 
-                                            btn.classList.remove("bg-emerald-600", "text-white"); 
-                                        }, 1000); 
-                                    }} 
-                                    className="px-6 h-14 bg-slate-100 border border-slate-200 text-slate-600 hover:bg-blue-600 hover:text-white rounded-xl font-black text-sm transition-all active:scale-95 shadow-sm whitespace-nowrap uppercase tracking-wider"
-                                >
-                                    Add
-                                </button>
+                                <input type="number" min="1" placeholder="1" className="w-16 h-14 bg-slate-50 border border-slate-200 rounded-xl px-2 text-center text-slate-800 font-mono text-xl font-bold focus:border-blue-500 outline-none" value={recipeQuantities[recipe.name] || ""} onChange={(e) => handleRecipeQtyChange(recipe.name, e.target.value)} />
+                                <button onClick={() => handleAddRecipe(recipe)} className="px-6 h-14 bg-slate-100 border border-slate-200 text-slate-600 hover:bg-blue-600 hover:text-white rounded-xl font-black text-sm transition-all active:scale-95 shadow-sm whitespace-nowrap uppercase tracking-wider"> Add </button>
                             </div>
                         </div>
                     ))}
-                    {list.length === 0 && <div className="text-center text-slate-400 mt-10 uppercase tracking-widest">No recipes found.</div>}
                 </div>
             );
 
@@ -774,64 +806,47 @@
                         <button onClick={onClose} className="px-6 py-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 font-bold text-xs uppercase tracking-widest border border-slate-200 transition-all">Exit</button>
                     </div>
                     <div className="p-4 border-b border-slate-200 bg-slate-50 space-y-4">
+                        <div className="bg-white p-4 rounded-2xl border-2 border-blue-400 flex items-center justify-between shadow-md">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-200"><Icons.Settings size={20} /></div>
+                                <div>
+                                    <div className="text-[10px] text-blue-500 font-black uppercase tracking-[0.2em]">Cálculo Global</div>
+                                    <div className="text-lg font-black text-slate-800 uppercase tracking-tighter">Medida del Shot</div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-xl border border-slate-200">
+                                <input type="number" step="0.1" value={shotSize} onChange={(e) => setShotSize(parseFloat(e.target.value) || 0)} className="w-20 bg-white border-2 border-blue-200 text-center font-black text-blue-600 text-2xl rounded-lg py-1 focus:border-blue-500 focus:ring-0 outline-none" />
+                                <span className="text-sm font-black text-slate-400 uppercase tracking-widest pr-2">OZ</span>
+                            </div>
+                        </div>
                         <div className="flex p-1 bg-slate-200 rounded-xl border border-slate-300">
                             <button onClick={() => setActiveTab('products')} className={`flex-1 py-3 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'products' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>Products</button>
                             <button onClick={() => setActiveTab('cocktails')} className={`flex-1 py-3 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'cocktails' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}><Icons.Cocktail size={14} /> Cocktails</button>
                             <button onClick={() => setActiveTab('pitchers')} className={`flex-1 py-3 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'pitchers' ? 'bg-white text-amber-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}><Icons.Pitcher size={14} /> Pitchers</button>
                         </div>
-                        <div className="relative"><Icons.Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><input type="text" placeholder={`SEARCH ${activeTab.toUpperCase()}...`} className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-4 py-4 text-slate-800 focus:outline-none focus:border-blue-500 transition-all font-bold text-sm shadow-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />{searchTerm && <button onClick={() => setSearchTerm("")} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">✕</button>}</div>
+                        <div className="relative"><Icons.Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><input type="text" placeholder={`SEARCH ${activeTab.toUpperCase()}...`} className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-4 py-4 text-slate-800 focus:outline-none focus:border-blue-500 transition-all font-bold text-sm shadow-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
                     </div>
                     <div className="flex-1 overflow-y-auto p-6 space-y-8 bg-slate-50">
                         {activeTab === 'products' ? (
-                            filteredData.length === 0 ? <div className="text-center text-slate-400 mt-10 uppercase tracking-widest">No products found.</div> : filteredData.map(cat => (
+                            filteredData.map(cat => (
                                 <div key={cat.category} className="space-y-4">
                                     <div className="sticky top-0 bg-slate-50/95 backdrop-blur-sm py-3 z-10 border-b border-slate-200 flex items-center gap-2">
                                         <div className="w-1 h-4 bg-blue-500 rounded-full"></div>
                                         <h3 className="text-blue-600 font-black text-sm uppercase tracking-[0.2em]">{cat.category}</h3>
                                     </div>
-                                    <div className="grid gap-4">{cat.items.map(item => {
-                                        const isUnit = cat.category.includes("Beers") || cat.category.includes("Seltzer") || cat.category.includes("Non");
-                                        return (
-                                            <div key={item.id} className="bg-white p-6 rounded-2xl border border-slate-200 flex flex-col gap-4 shadow-sm hover:border-blue-300 transition-all">
-                                                <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                                                    <span className="font-black text-slate-800 text-lg tracking-wide">{item.name}</span>
-                                                    <span className="text-emerald-600 font-mono font-black text-xl bg-emerald-50 px-4 py-1 rounded-lg border border-emerald-100">Total: {item.sales || 0}</span>
-                                                </div>
-                                                <div className="grid grid-cols-3 gap-4">
-                                                    <div className="relative group">
-                                                        <label className="text-[10px] text-slate-400 uppercase font-bold block mb-2 tracking-widest text-center group-focus-within:text-blue-500">{isUnit ? 'Units' : 'Bottles'}</label>
-                                                        <input 
-                                                            type="number" 
-                                                            placeholder="0" 
-                                                            className="w-full h-24 bg-slate-50 border-2 border-slate-200 rounded-2xl px-2 text-center text-slate-800 font-mono text-4xl font-black focus:border-blue-500 focus:bg-white outline-none transition-all placeholder-slate-300" 
-                                                            value={item.sold_bottles || ""} 
-                                                            onChange={(e) => handleLocalSalesChange(item, 'bottles', e.target.value, cat.category)}
-                                                        />
-                                                    </div>
-                                                    <div className="relative group">
-                                                        <label className="text-[10px] text-slate-400 uppercase font-bold block mb-2 tracking-widest text-center group-focus-within:text-blue-500">{isUnit ? 'Bucket (x6)' : 'Shots'}</label>
-                                                        <input 
-                                                            type="number" 
-                                                            placeholder="0" 
-                                                            className="w-full h-24 bg-slate-50 border-2 border-slate-200 rounded-2xl px-2 text-center text-slate-800 font-mono text-4xl font-black focus:border-blue-500 focus:bg-white outline-none transition-all placeholder-slate-300" 
-                                                            value={item.sold_shots || ""} 
-                                                            onChange={(e) => handleLocalSalesChange(item, 'shots', e.target.value, cat.category)}
-                                                        />
-                                                    </div>
-                                                    <div className="relative group">
-                                                        <label className="text-[10px] text-slate-400 uppercase font-bold block mb-2 tracking-widest text-center group-focus-within:text-emerald-500">Comps</label>
-                                                        <input 
-                                                            type="number" 
-                                                            placeholder="0" 
-                                                            className="w-full h-24 bg-emerald-50/50 border-2 border-emerald-100 rounded-2xl px-2 text-center text-emerald-700 font-mono text-4xl font-black focus:border-emerald-500 focus:bg-white outline-none transition-all placeholder-emerald-200" 
-                                                            value={item.sold_comps || ""} 
-                                                            onChange={(e) => handleLocalSalesChange(item, 'comps', e.target.value, cat.category)}
-                                                        />
-                                                    </div>
-                                                </div>
+                                    <div className="grid gap-4">{cat.items.map(item => (
+                                        <div key={item.id} className="bg-white p-6 rounded-2xl border border-slate-200 flex flex-col gap-4 shadow-sm hover:border-blue-300 transition-all">
+                                            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                                                <span className="font-black text-slate-800 text-lg tracking-wide">{item.name}</span>
+                                                <span className="text-emerald-600 font-mono font-black text-xl bg-emerald-50 px-4 py-1 rounded-lg border border-emerald-100">Total: {item.sales || 0}</span>
                                             </div>
-                                        );
-                                    })}</div>
+                                            <div className="grid grid-cols-3 gap-4">
+                                                <div className="relative group"><label className="text-[10px] text-slate-400 uppercase font-bold block mb-2 tracking-widest text-center">Bottles/Units</label><input type="number" placeholder="0" className="w-full h-24 bg-slate-50 border-2 border-slate-200 rounded-2xl text-center text-slate-800 font-mono text-4xl font-black focus:border-blue-500 outline-none transition-all" value={item.sold_bottles || ""} onChange={(e) => handleLocalSalesChange(item, 'bottles', e.target.value, cat.category)} /></div>
+                                                <div className="relative group"><label className="text-[10px] text-slate-400 uppercase font-bold block mb-2 tracking-widest text-center">Shots</label><input type="number" placeholder="0" className="w-full h-24 bg-slate-50 border-2 border-slate-200 rounded-2xl text-center text-slate-800 font-mono text-4xl font-black focus:border-blue-500 outline-none transition-all" value={item.sold_shots || ""} onChange={(e) => handleLocalSalesChange(item, 'shots', e.target.value, cat.category)} /></div>
+                                                <div className="relative group"><label className="text-[10px] text-slate-400 uppercase font-bold block mb-2 tracking-widest text-center">Comps</label><input type="number" placeholder="0" className="w-full h-24 bg-emerald-50/50 border-2 border-emerald-100 rounded-2xl text-center text-emerald-700 font-mono text-4xl font-black focus:border-emerald-500 outline-none transition-all" value={item.sold_comps || ""} onChange={(e) => handleLocalSalesChange(item, 'comps', e.target.value, cat.category)} /></div>
+                                            </div>
+                                        </div>
+                                    ))}</div>
                                 </div>
                             ))
                         ) : activeTab === 'cocktails' ? (
